@@ -1,0 +1,199 @@
+---
+title: "Stup BTRY 6020 Final Project"
+author: "Rebecca Stup"
+date: "2025-05-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Table of Contents
+* Introduction
+* Exploratory Data Analysis
+* Regression Assumptions Verification
+* Assumption Violation Handling
+* Variable Selection & Hypothesis Testing
+* Feature Impact Analysis
+* Conclusion
+* References
+
+# Introduction
+The dataset used in this analysis is publicly available on Kaggle (Attakorah 2024). It contains ten variables and a million observations. For the sake of computational efficiency, this analysis was performed using a subset of for which the crop in question was corn, which contained 166,824 observations. The dependent variable was the yield in tons per hectare, and all other variables were used as predictors. The goal of this analysis is to predict corn yields based on the various environmental and management factors provided in this dataset. 
+
+# Exploratory Data Analysis
+The first thing that we will do is familiarize ourselves with the data set, which can be found here: 
+https://www.kaggle.com/datasets/samuelotiattakorah/agriculture-crop-yield
+```{r}
+#Load data in
+yield_df <- read.csv("C:/Users/rebec/OneDrive/Documents/Class Work/BTRY 6020/crop_yield.csv") #If you would like to follow along, you will need to download the dataset and replace this line of code with its location on your computer.
+#Summary statistics of variables 
+head(yield_df)
+summary(yield_df)
+```
+The variables are explained as follows by the creator of the dataset:
+
+* Region: The geographical region where the crop is grown (North, East, South, West).
+* Soil_Type: The type of soil in which the crop is planted (Clay, Sandy, Loam, Silt, Peaty, Chalky).
+* Crop: The type of crop grown (Wheat, Rice, Maize, Barley, Soybean, Cotton).
+* Rainfall_mm: The amount of rainfall received in millimeters during the crop growth period.
+* Temperature_Celsius: The average temperature during the crop growth period, measured in degrees Celsius.
+* Fertilizer_Used: Indicates whether fertilizer was applied (True = Yes, False = No).
+* Irrigation_Used: Indicates whether irrigation was used during the crop growth period (True = Yes, False = No).
+* Weather_Condition: The predominant weather condition during the growing season (Sunny, Rainy, Cloudy).
+* Days_to_Harvest: The number of days taken for the crop to be harvested after planting.
+* Yield_tons_per_hectare: The total crop yield produced, measured in tons per hectare.
+
+
+This data set is quite large, so we will narrow our focus to a single crop for the sake of computational efficiency. I chose corn, since it is the main crop that I am using in my research at the moment.
+```{r}
+#Examine the crop column
+table(yield_df$Crop)
+#Create a subset with jsut corn
+corn_df <- yield_df[yield_df$Crop == "Maize", ]
+#Summary statistics
+summary(corn_df)
+```
+
+Next, we will visualize individual variables and look for any associations between numeric variables. It initially looks like yield and rainfall may be associated.
+```{r}
+#Visualize numeric variables
+hist(corn_df$Rainfall_mm)
+hist(corn_df$Temperature_Celsius)
+hist(corn_df$Days_to_Harvest)
+hist(corn_df$Yield_tons_per_hectare)
+
+#Tables for categorical variables
+table(corn_df$Region)
+table(corn_df$Soil_Type)
+table(corn_df$Fertilizer_Used)
+table(corn_df$Irrigation_Used)
+table(corn_df$Weather_Condition)
+
+#Check for associations between numeric variables
+pairs(corn_df[, -c(1, 2, 3, 6, 7, 8)])
+```
+Next, we will check for missing data and outliers.
+```{r}
+#Check for missing data
+anyNA(corn_df)
+#Check for outliers
+boxplot.stats(corn_df$Rainfall_mm)$out
+boxplot.stats(corn_df$Temperature_Celsius)$out
+boxplot.stats(corn_df$Days_to_Harvest)$out
+boxplot.stats(corn_df$Yield_tons_per_hectare)$out 
+```
+There is no missing data, and only a few outliers. For now, I am choosing to leave the outliers in. This dataset is already very clean, but I am going to set all of the qualitative predictor variables as factors to ensure my code works properly. 
+```{r}
+corn_df$Region<-as.factor(corn_df$Region)
+corn_df$Soil_Type<-as.factor(corn_df$Soil_Type)
+corn_df$Crop<-as.factor(corn_df$Crop)
+corn_df$Weather_Condition<-as.factor(corn_df$Weather_Condition)
+corn_df$Fertilizer_Used<-as.factor(corn_df$Fertilizer_Used)
+corn_df$Irrigation_Used<-as.factor(corn_df$Irrigation_Used)
+```
+
+
+
+# Regression Assumptions Verification
+First, let's fit a model will all of the possible covariates.
+```{r}
+corn_mod <- lm(Yield_tons_per_hectare~ Rainfall_mm + Temperature_Celsius + Days_to_Harvest + Region + Soil_Type + Fertilizer_Used + Irrigation_Used, data=corn_df)
+summary(corn_mod) 
+```
+
+Next, we will plot the residuals to check for linearity and homoscedasticity, as well as the Q-Q plot to check for normality.
+```{r}
+plot(corn_mod$fitted.values, corn_mod$residuals, pch = 19, cex = .1,
+     xlab = "fitted values", ylab = "residuals")
+plot(corn_mod, which = 2)
+```
+The plot of the residuals has no clear pattern and is centered around zero, meaning that the assumptions of linearity and homoscedasticity are likely met. The Q-Q plot is a straight line, so we can say that our data is normally distributed.
+
+We will use a Durbin-Watson test to check that the errors are independent.
+```{r}
+library(lmtest)
+dwtest(corn_mod) 
+```
+Based on these results, we cannot reject the null hypothesis that there is no autocorrelation in this data.
+
+To test for multicollinearity, we will use the Variance Inflation Factor.
+```{r}
+library(car)
+vif(corn_mod)
+```
+All of the values given are close to 1, so this assumption is not violated.
+
+
+# Assumption Violation Handling
+Because all of the key assumptions of multiple linear regression were met by this dataset, no transformations were applied. For the purposes of this assignment, I will briefly discuss what steps I could have taken if any of the assumptions had been violated. 
+
+* If the assumptions of linearity, homoscedasticity, or normality had been violated, the appropriate response would be to transform the data (typically, this is a log transformation or a square root transformation) and compare the plots of the potential transformations. 
+* If the assumption of independence of errors was violated, an appropriate response would be to use a fixed effects model.
+* If the assumption that multicollinearity is low was violated, an appropriate response would be to remove a predictor.
+
+# Variable Selection & Hypothesis Testing
+Now that we have confirmed that our model meets the assumptions of multiple linear regression, we can use model selection algorithms to determine which set of covariates to include for optimal predictive power. We will compare the results of two different procedures, backwards stepwise selection and forwards stepwise selection and choose the model with the best fit (in this case, this will be the model with the lower BIC).
+```{r}
+#Backward stepwise selection with BIC
+backward_bic<-step(object=corn_mod,direction="backward", scope=formula(corn_mod),trace=T,k=log(nrow(corn_df))) 
+#Forward stepwise selection with BIC
+null_mod <- lm(Yield_tons_per_hectare~ 1, data=corn_df)
+forward_bic<-step(object=null_mod,direction="forward", scope=formula(corn_mod),trace=T,k=log(nrow(corn_df))) 
+
+#Summary of results
+summary(backward_bic)
+summary(forward_bic)
+```
+Both procedures selected rainfall, temperature, the use of fertilization, and the use of irrigation as predictor variables for the true model. Both procedures also resulted the in same value for the BIC (-231217). Since the results were the same, we don't have to choose between the models.
+
+Now, let's fit the new model and perform hypothesis tests on the predictor variables.
+```{r}
+#Fit the new model
+corn_mod2 <- lm(Yield_tons_per_hectare ~ Rainfall_mm + Fertilizer_Used + Irrigation_Used + Temperature_Celsius, data = corn_df)
+#t-tests for individual variables are automatically included in model summaries in R, so let's look at them now
+summary(corn_mod2)
+#We can use the anova function to run an F-test on the model
+anova(corn_mod2)
+```
+All of the variables are highly significant in this model, both jointly (from the F-test) and on their on (from the t-tests). Because our goal is to fit a predictive model, we should focus more on validating the model than on hypothesis testing for individual coefficients. Because of this, our next step will be to assess model performance. Some metrics, like the R² (0.9131) and the adjusted R² (0.9131), were also given to us in the summary of our model. These are fairly high (R² is on a scale from 0 to 1), so they indicate that the model fits the data well. However, R² does not penalize complexity, which can lead to overfitting. To further assess the model, we will calculate the RMSE and validate the model using K-fold cross validation.
+
+```{r}
+#RMSE is the square root of the mean of the error (actual-fitted) squared
+rmse <- sqrt(mean((corn_df$Yield_tons_per_hectare-corn_mod2$fitted.values)^2))
+rmse # 0.4999846
+#Compare with RMSE of full model
+rmse2 <- sqrt(mean((corn_df$Yield_tons_per_hectare-corn_mod$fitted.values)^2))
+rmse2 # 0.4999846
+#K-fold cross validation divided into 10 folds
+library("boot")
+err_cv <- cv.glm(corn_df, glm(Yield_tons_per_hectare~ Rainfall_mm + Fertilizer_Used + Irrigation_Used + Temperature_Celsius, data = corn_df), K = 10)
+#Get the value of the total MSE
+err_cv$delta[1]
+#Compare with full model
+err_cv2 <- cv.glm(corn_df, glm(Yield_tons_per_hectare~ Rainfall_mm + Fertilizer_Used + Irrigation_Used + Temperature_Celsius + Days_to_Harvest + Region + Soil_Type, data = corn_df), K = 10)
+err_cv2$delta[1]
+```
+For both the RMSE and the total MSE obtained from cross-validation, a smaller result means that the model has more predictive power. In this case, the models are very comparable. The model that we decided was optimal based on the selection procedures performs very slightly better in the cross-validation, and is simpler, so we will continue to use that one. 
+
+
+# Feature Impact Analysis
+Finally, it's time to interpret the model! Let's take a look at the coefficients and confidence intervals:
+```{r}
+#Coefficients from the model
+coef(corn_mod2)
+#95% confidence intervals
+coefci(corn_mod2, level = .95)
+```
+From this, we can determine that provided all other factors in the model remain the same, then:
+
+* Yield increases by 0.005 tons/hectare for each 1 mm increase in rainfall (95% CI [0.005, 0.005])
+* The use of fertilizer increases yield by 1.498  tons/hectare (95% CI [1.493, 1.503])
+* The use of irrigation increases yield by 1.201 tons/hectare (95% CI [1.196, 1.205])
+* Yield increases by 0.0020 tons/hectare for each 1 degree increase in temperature (95% CI [0.020, 0.020])
+
+# Conclusion
+From a practical standpoint, the results of this analysis indicate that the most relevant factors when it comes to predicting yield are the total rainfall and average temperature in an area, as well as whether or not the field was irrigated or fertilized. All of these factors are positively correlated with yield. However, it would be very strange for a farmer not to fertilize their fields, so it can be safely assumed that the overwhelming majority of data points for this factor would be “true” for the majority of datasets. Also, it would likely be more useful to look at fertilization and irrigation rates than simply whether or not these practices were implemented. Unlike rainfall and average temperature, these factors are within farmers’ control, making them especially important. It is not possible with this particular dataset, but a model that predicts increases in crop yield based off of application rates would be the most useful from a management perspective. This would be especially useful if the model was capable of determining the rate at which the increase in yield begins to plateau, so that farmers could minimize costs by not applying extraneous fertilizer.
+
+# References
+Attakorah, S.O. (2024, September). Agriculture Crop Yield, Version 1. Retrieved May 13, 2025 from https://www.kaggle.com/datasets/samuelotiattakorah/agriculture-crop-yield.
